@@ -1,0 +1,66 @@
+
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generali's Bar & Kitchen</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#E58A4E',
+              charcoal: '#2C2A29',
+              background: '#FDFBF7',
+            },
+            fontFamily: {
+              sans: ['Roboto', 'sans-serif'],
+              heading: ['Poppins', 'sans-serif'],
+            },
+            keyframes: {
+              kenburns: {
+                '0%': { transform: 'scale(1.1) translate(0, 0)' },
+                '100%': { transform: 'scale(1) translate(5%, 5%)' },
+              },
+            },
+            animation: {
+              kenburns: 'kenburns 30s ease-out forwards',
+            },
+          }
+        }
+      }
+    </script>
+    <style>
+        body {
+            background-color: #FDFBF7;
+            color: #2C2A29;
+            font-family: 'Roboto', sans-serif;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.27.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
