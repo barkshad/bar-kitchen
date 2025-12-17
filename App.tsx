@@ -42,11 +42,16 @@ export default function App() {
     try {
       await saveAppDataToSupabase(newData);
       setData(newData);
-      alert('Changes saved successfully to your database!');
+      alert('Changes saved successfully!');
     } catch (err: any) {
-      console.error("Save failed in UI:", err);
-      const errorMsg = err.message || 'Unknown error';
-      alert(`SAVE FAILED: ${errorMsg}\n\nCOMMON FIX: Ensure you have run the SQL script in the Supabase SQL Editor to create the 'site_settings' table.`);
+      console.error("Save attempt failed:", err);
+      const msg = err.message || 'Unknown error';
+      
+      if (msg.toLowerCase().includes('failed to fetch')) {
+        alert("CRITICAL ERROR: Failed to fetch.\n\nThis usually means:\n1. Your Supabase URL in 'supabase.ts' is incorrect.\n2. Your Supabase project is paused.\n3. An Ad-Blocker is blocking the request.\n\nPlease check your console for more details.");
+      } else {
+        alert(`SAVE FAILED: ${msg}\n\nEnsure you have run the SQL setup script in your Supabase SQL Editor.`);
+      }
     }
   };
 

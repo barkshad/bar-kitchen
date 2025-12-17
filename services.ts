@@ -9,7 +9,7 @@ const SETTINGS_KEY = 'main_config';
 
 /**
  * Fetches all app data from Supabase site_settings table.
- * Falls back to initialData if no data is found or if the table hasn't been created.
+ * Falls back to initialData if the network is down or the table is missing.
  */
 export const loadAppData = async (): Promise<AppData> => {
   try {
@@ -20,9 +20,9 @@ export const loadAppData = async (): Promise<AppData> => {
       .single();
 
     if (error) {
-      // PGRST116 means "no rows found", which is expected on first load
+      // PGRST116 means "no rows found", which is fine for first-time users.
       if (error.code !== 'PGRST116') {
-        console.error("Supabase error fetching data:", error.message);
+        console.warn(`Supabase query error (${error.code}): ${error.message}`);
       }
       return initialData;
     }
@@ -32,8 +32,13 @@ export const loadAppData = async (): Promise<AppData> => {
     }
 
     return data.content as AppData;
-  } catch (error) {
-    console.error("Critical error loading data from Supabase:", error);
+  } catch (err: any) {
+    // Catching network errors like "Failed to fetch"
+    if (err.message === 'Failed to fetch' || err instanceof TypeError) {
+      console.error("Supabase Unreachable: Connection failed. This usually means the SUPABASE_URL is incorrect, the project is paused, or an Ad-Blocker is active.");
+    } else {
+      console.error("Unexpected error loading data:", err);
+    }
     return initialData;
   }
 };
@@ -43,11 +48,8 @@ export const loadAppData = async (): Promise<AppData> => {
  */
 export const saveAppDataToSupabase = async (data: AppData): Promise<void> => {
   try {
-    // 1. Sanitize the data to ensure it's a clean JSON object
     const cleanData = JSON.parse(JSON.stringify(data));
 
-    // 2. Perform the upsert
-    // 'onConflict' ensures that we update the existing 'main_config' row instead of trying to insert a duplicate.
     const { error } = await supabase
       .from('site_settings')
       .upsert(
@@ -60,11 +62,13 @@ export const saveAppDataToSupabase = async (data: AppData): Promise<void> => {
       );
 
     if (error) {
-      console.error("Supabase Save Error:", error);
+      console.error("Supabase Save Error Details:", error);
       throw new Error(error.message);
     }
   } catch (error: any) {
-    console.error("Detailed catch in saveAppDataToSupabase:", error);
+    if (error.message === 'Failed to fetch' || error instanceof TypeError) {
+      throw new Error("Network Error: Could not reach Supabase. Check your internet or Supabase URL.");
+    }
     throw error;
   }
 };
