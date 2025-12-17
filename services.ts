@@ -51,16 +51,10 @@ export const saveAppDataToSupabase = async (data: AppData): Promise<void> => {
   }
 };
 
-// --- Legacy Support (Redundant but kept for transition if needed) ---
-export const saveGalleryToDB = async (gallery: GalleryImage[]): Promise<void> => {};
-export const loadGalleryFromDB = async (): Promise<GalleryImage[] | null> => null;
-export const saveDataToLocalStorage = (data: Omit<AppData, 'gallery'>): void => {};
-export const loadDataFromLocalStorage = (): Omit<AppData, 'gallery'> | null => null;
-
-
 // --- AI Service (Gemini API) ---
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-const VISION_MODEL = 'gemini-2.5-flash'; 
+// FIX: Using gemini-3-flash-preview for faster, high-quality multimodal performance.
+// Initialization of GoogleGenAI is moved inside functions to ensure current API key usage per guidelines.
+const VISION_MODEL = 'gemini-3-flash-preview'; 
 
 // Helper to convert file or data URL to base64
 export const fileToBase64 = (file: File): Promise<string> => {
@@ -77,6 +71,8 @@ export const generateCaptionSuggestions = async (imageDataUrl: string): Promise<
     const base64Data = imageDataUrl.split(',')[1];
     if (!base64Data) return [];
 
+    // FIX: Always create a new GoogleGenAI instance right before making an API call to ensure use of correct API key.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: VISION_MODEL,
@@ -116,6 +112,8 @@ export const generateSingleCaption = async (imageDataUrl: string): Promise<strin
     const base64Data = imageDataUrl.split(',')[1];
     if (!base64Data) return "A beautiful moment at Generali's.";
 
+    // FIX: Create a new GoogleGenAI instance right before the call as per SDK rules.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: VISION_MODEL,
