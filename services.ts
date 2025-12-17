@@ -36,24 +36,30 @@ export const loadAppData = async (): Promise<AppData> => {
  */
 export const saveAppDataToSupabase = async (data: AppData): Promise<void> => {
   try {
+    // 1. Sanitize the data to ensure it's a clean JSON object
+    const cleanData = JSON.parse(JSON.stringify(data));
+
+    // 2. Perform the upsert
+    // We include the 'key' in the object so Supabase knows which row to update
     const { error } = await supabase
       .from('site_settings')
       .upsert({ 
         key: SETTINGS_KEY, 
-        content: data,
+        content: cleanData,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'key' });
+      });
 
-    if (error) throw error;
-  } catch (error) {
-    console.error("Error saving data to Supabase:", error);
+    if (error) {
+      console.error("Supabase API Error:", error.message, error.details, error.hint);
+      throw new Error(`Supabase Error: ${error.message}`);
+    }
+  } catch (error: any) {
+    console.error("Detailed error in saveAppDataToSupabase:", error);
     throw error;
   }
 };
 
 // --- AI Service (Gemini API) ---
-// FIX: Using gemini-3-flash-preview for faster, high-quality multimodal performance.
-// Initialization of GoogleGenAI is moved inside functions to ensure current API key usage per guidelines.
 const VISION_MODEL = 'gemini-3-flash-preview'; 
 
 // Helper to convert file or data URL to base64
@@ -71,7 +77,6 @@ export const generateCaptionSuggestions = async (imageDataUrl: string): Promise<
     const base64Data = imageDataUrl.split(',')[1];
     if (!base64Data) return [];
 
-    // FIX: Always create a new GoogleGenAI instance right before making an API call to ensure use of correct API key.
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
         const response: GenerateContentResponse = await ai.models.generateContent({
@@ -112,7 +117,6 @@ export const generateSingleCaption = async (imageDataUrl: string): Promise<strin
     const base64Data = imageDataUrl.split(',')[1];
     if (!base64Data) return "A beautiful moment at Generali's.";
 
-    // FIX: Create a new GoogleGenAI instance right before the call as per SDK rules.
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
         const response: GenerateContentResponse = await ai.models.generateContent({

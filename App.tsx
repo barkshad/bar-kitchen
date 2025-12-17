@@ -42,8 +42,10 @@ export default function App() {
     try {
       await saveAppDataToSupabase(newData);
       setData(newData);
-    } catch (err) {
-      alert('Failed to save to Supabase. Check the console for details.');
+      alert('Changes saved successfully!');
+    } catch (err: any) {
+      console.error("Save failed:", err);
+      alert(`Failed to save to Supabase: ${err.message || 'Unknown error'}. Please ensure the database table is set up correctly.`);
     }
   };
 
@@ -233,7 +235,6 @@ const Hero = React.forwardRef<HTMLElement, { data: AppData['hero'] }>(({ data },
   </section>
 ));
 
-// FIX: Define SectionTitleProps interface and use React.FC to properly handle children prop typing to resolve TypeScript errors across multiple sections.
 interface SectionTitleProps {
   children: React.ReactNode;
   subtitle?: string;
