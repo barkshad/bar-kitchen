@@ -1,9 +1,7 @@
-
-
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppData, GalleryImage } from './types';
 import { initialData } from './initialData';
-import { loadAppData, saveDataToLocalStorage, saveGalleryToDB } from './services';
+import { loadAppData, saveAppDataToSupabase } from './services';
 import AdminPanel from './components/admin/AdminPanel';
 
 // --- MAIN APP COMPONENT ---
@@ -35,24 +33,25 @@ export default function App() {
     };
     loadData();
     
-    // Check session storage for login status
     if (sessionStorage.getItem('generalis_admin_auth') === 'true') {
       setIsLoggedIn(true);
     }
   }, []);
 
   const handleSave = async (newData: AppData) => {
-    const { gallery, ...restOfData } = newData;
-    saveDataToLocalStorage(restOfData);
-    await saveGalleryToDB(gallery);
-    setData(newData);
-    alert('Changes saved successfully!');
+    try {
+      await saveAppDataToSupabase(newData);
+      setData(newData);
+      alert('Changes synchronized with Supabase successfully!');
+    } catch (err) {
+      alert('Failed to save to Supabase. Check the console for details.');
+    }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-2xl font-heading text-primary">Loading Generali's...</div>
+        <div className="text-2xl font-heading text-primary animate-pulse">Initializing Generali's...</div>
       </div>
     );
   }
@@ -110,7 +109,6 @@ const useOnScreen = (refs: React.RefObject<HTMLElement>[], setActiveSection: (id
             if(ref.current) observer.unobserve(ref.current);
         });
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 };
 
@@ -132,7 +130,6 @@ const CloseIcon = () => (
 
 // --- SECTION COMPONENTS ---
 
-// FIX: Update component prop types to use React.FC and an explicit interface to resolve typing issues.
 interface NavLinkProps {
   href: string;
   children: React.ReactNode;
@@ -233,7 +230,6 @@ const Hero = React.forwardRef<HTMLElement, { data: AppData['hero'] }>(({ data },
   </section>
 ));
 
-// FIX: Update component prop types to use React.FC and an explicit interface to resolve typing issues.
 interface SectionTitleProps {
   children: React.ReactNode;
 }
@@ -266,7 +262,6 @@ const Menu = React.forwardRef<HTMLElement, { data: AppData['menu'] }>(({ data },
   <section ref={ref} id="menu" className="py-20 md:py-32">
     <div className="container mx-auto px-6">
       <SectionTitle>Our Menu</SectionTitle>
-      {/* Menu Overview */}
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
         {data.overview.map(category => (
           <div key={category.title} className="bg-white p-6 rounded-lg shadow-sm">
@@ -282,7 +277,6 @@ const Menu = React.forwardRef<HTMLElement, { data: AppData['menu'] }>(({ data },
           </div>
         ))}
       </div>
-      {/* Full Menu */}
       <div>
         {data.fullMenu.map(category => (
           <div key={category.title} className="mb-12">
@@ -444,7 +438,7 @@ const Footer = ({ onAdminClick }: { onAdminClick: () => void }) => (
                 <div>
                     <h4 className="font-heading text-xl font-bold text-white mb-4">Newsletter</h4>
                     <p className="text-sm mb-4">Sign up for special offers and event news.</p>
-                    <form className="flex">
+                    <form className="flex" onSubmit={e => e.preventDefault()}>
                         <input type="email" placeholder="Your Email" className="bg-white/10 text-white placeholder-white/50 px-4 py-2 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary flex-grow" />
                         <button type="submit" className="bg-primary text-white font-bold px-4 py-2 rounded-r-md hover:bg-opacity-80 transition-colors">Sign Up</button>
                     </form>
@@ -468,22 +462,8 @@ const Footer = ({ onAdminClick }: { onAdminClick: () => void }) => (
 
 const ScrollToTopButton = () => {
     const [visible, setVisible] = useState(false);
-
-    const toggleVisible = () => {
-        const scrolled = document.documentElement.scrollTop;
-        if (scrolled > 300) {
-            setVisible(true);
-        } else {
-            setVisible(false);
-        }
-    };
-
-    const scrollToTop = () => {
-        window.scrollTo({
-            top: 0,
-            behavior: 'smooth'
-        });
-    };
+    const toggleVisible = () => setVisible(window.scrollY > 300);
+    const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
     useEffect(() => {
         window.addEventListener('scroll', toggleVisible);

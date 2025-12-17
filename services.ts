@@ -1,187 +1,142 @@
-
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { AppData, GalleryImage } from './types';
 import { initialData } from './initialData';
+import { supabase } from './supabase';
 
-const DB_NAME = 'GeneralisDB';
-const DB_VERSION = 1;
-const GALLERY_STORE_NAME = 'gallery';
-const DATA_KEY = 'generalis_data';
+const SETTINGS_KEY = 'main_config';
 
-// --- IndexedDB Service for Gallery ---
+// --- Supabase Service for App Data ---
 
-let db: IDBDatabase;
-
-const initDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    if (db) {
-      return resolve(db);
-    }
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => reject('Error opening DB');
-    request.onsuccess = (event) => {
-      db = (event.target as IDBOpenDBRequest).result;
-      resolve(db);
-    };
-    request.onupgradeneeded = (event) => {
-      const dbInstance = (event.target as IDBOpenDBRequest).result;
-      if (!dbInstance.objectStoreNames.contains(GALLERY_STORE_NAME)) {
-        dbInstance.createObjectStore(GALLERY_STORE_NAME, { keyPath: 'id', autoIncrement: true });
-      }
-    };
-  });
-};
-
-export const saveGalleryToDB = async (gallery: GalleryImage[]): Promise<void> => {
-  const dbInstance = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = dbInstance.transaction(GALLERY_STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(GALLERY_STORE_NAME);
-    store.clear();
-    gallery.forEach(image => store.add(image));
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject('Error saving gallery');
-  });
-};
-
-export const loadGalleryFromDB = async (): Promise<GalleryImage[] | null> => {
-  const dbInstance = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = dbInstance.transaction(GALLERY_STORE_NAME, 'readonly');
-    const store = transaction.objectStore(GALLERY_STORE_NAME);
-    const request = store.getAll();
-    request.onsuccess = () => {
-        if (request.result && request.result.length > 0) {
-            resolve(request.result);
-        } else {
-            resolve(null);
-        }
-    };
-    request.onerror = () => reject('Error loading gallery');
-  });
-};
-
-
-// --- LocalStorage Service for other data ---
-
-export const saveDataToLocalStorage = (data: Omit<AppData, 'gallery'>): void => {
-  try {
-    const serializedData = JSON.stringify(data);
-    localStorage.setItem(DATA_KEY, serializedData);
-  } catch (error) {
-    console.error("Could not save data to localStorage", error);
-  }
-};
-
-export const loadDataFromLocalStorage = (): Omit<AppData, 'gallery'> | null => {
-  try {
-    const serializedData = localStorage.getItem(DATA_KEY);
-    if (serializedData === null) {
-      return null;
-    }
-    return JSON.parse(serializedData);
-  } catch (error) {
-    console.error("Could not load data from localStorage", error);
-    return null;
-  }
-};
-
-// --- Combined Data Loader ---
-
+/**
+ * Fetches all app data from Supabase site_settings table.
+ * Falls back to initialData if no data is found.
+ */
 export const loadAppData = async (): Promise<AppData> => {
-    const localData = loadDataFromLocalStorage();
-    const galleryData = await loadGalleryFromDB();
+  try {
+    const { data, error } = await supabase
+      .from('site_settings')
+      .select('content')
+      .eq('key', SETTINGS_KEY)
+      .single();
 
-    if (localData && galleryData) {
-        return { ...localData, gallery: galleryData };
+    if (error || !data) {
+      console.warn("Could not fetch data from Supabase, using initial data:", error?.message);
+      return initialData;
     }
-    // If anything is missing, return the full initial data set
+
+    return data.content as AppData;
+  } catch (error) {
+    console.error("Error loading data from Supabase:", error);
     return initialData;
+  }
 };
 
+/**
+ * Saves/Upserts the entire AppData object into Supabase.
+ */
+export const saveAppDataToSupabase = async (data: AppData): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('site_settings')
+      .upsert({ 
+        key: SETTINGS_KEY, 
+        content: data,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' });
 
-// --- Gemini API Service ---
+    if (error) throw error;
+  } catch (error) {
+    console.error("Error saving data to Supabase:", error);
+    throw error;
+  }
+};
+
+// --- Legacy Support (Redundant but kept for transition if needed) ---
+export const saveGalleryToDB = async (gallery: GalleryImage[]): Promise<void> => {};
+export const loadGalleryFromDB = async (): Promise<GalleryImage[] | null> => null;
+export const saveDataToLocalStorage = (data: Omit<AppData, 'gallery'>): void => {};
+export const loadDataFromLocalStorage = (): Omit<AppData, 'gallery'> | null => null;
+
+
+// --- AI Service (Gemini API) ---
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const VISION_MODEL = 'gemini-2.5-flash'; 
 
-const fileToGenerativePart = async (file: File) => {
-  const base64EncodedDataPromise = new Promise<string>((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-            resolve(reader.result.split(',')[1]);
-        }
-    };
-    reader.readAsDataURL(file);
-  });
-  return {
-    inlineData: { data: await base64EncodedDataPromise, mimeType: file.type },
-  };
-};
-
-export const base64ToGenerativePart = (base64String: string, mimeType: string) => {
-    return {
-      inlineData: {
-        data: base64String.split(',')[1],
-        mimeType: mimeType,
-      },
-    };
-};
-
-export const generateCaptionSuggestions = async (base64Image: string): Promise<string[]> => {
-    try {
-        const imagePart = base64ToGenerativePart(base64Image, 'image/jpeg');
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: { parts: [imagePart, {text: "Generate 3 diverse, concise, and appealing captions for this image for a restaurant's website gallery."}] },
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        captions: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.STRING
-                            }
-                        }
-                    }
-                }
-            }
-        });
-        
-        const jsonText = response.text.trim();
-        const result = JSON.parse(jsonText);
-        return result.captions || [];
-
-    } catch (error) {
-        console.error("Error generating captions:", error);
-        return ["Could not generate captions.", "Please try again.", "AI model error."];
-    }
-};
-
-export const generateSingleCaption = async (base64Image: string): Promise<string> => {
-     try {
-        const imagePart = base64ToGenerativePart(base64Image, 'image/jpeg');
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: { parts: [imagePart, {text: "Generate a single, concise, and appealing caption for this image for a restaurant's website gallery."}] }
-        });
-        return response.text.trim();
-    } catch (error) {
-        console.error("Error generating single caption:", error);
-        return "Caption generation failed.";
-    }
-}
-
-
-// --- Utility Functions ---
-
+// Helper to convert file or data URL to base64
 export const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result as string);
+        reader.onload = () => resolve((reader.result as string).split(',')[1]); // Extract base64 part
         reader.onerror = error => reject(error);
     });
+};
+
+export const generateCaptionSuggestions = async (imageDataUrl: string): Promise<string[]> => {
+    if (!imageDataUrl) return [];
+    const base64Data = imageDataUrl.split(',')[1];
+    if (!base64Data) return [];
+
+    try {
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: VISION_MODEL,
+            contents: {
+                parts: [
+                    {
+                        text: `Generate 3 diverse, short, and engaging caption suggestions for this image, suitable for a restaurant's social media gallery. Return as a JSON array of strings.`,
+                    },
+                    {
+                        inlineData: {
+                            mimeType: 'image/jpeg',
+                            data: base64Data,
+                        },
+                    },
+                ],
+            },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.STRING,
+                    },
+                },
+            },
+        });
+        
+        return JSON.parse(response.text || "[]") as string[];
+    } catch (error) {
+        console.error("Error generating caption suggestions:", error);
+        return ["Delicious moment captured!", "Come and experience our atmosphere!", "Taste the good life!"];
+    }
+};
+
+export const generateSingleCaption = async (imageDataUrl: string): Promise<string> => {
+    if (!imageDataUrl) return "A beautiful moment at Generali's.";
+    const base64Data = imageDataUrl.split(',')[1];
+    if (!base64Data) return "A beautiful moment at Generali's.";
+
+    try {
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: VISION_MODEL,
+            contents: {
+                parts: [
+                    {
+                        text: `Generate a single, short, and engaging caption for this image, suitable for a restaurant's social media gallery.`,
+                    },
+                    {
+                        inlineData: {
+                            mimeType: 'image/jpeg',
+                            data: base64Data,
+                        },
+                    },
+                ],
+            },
+        });
+        
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error generating single caption:", error);
+        return "A beautiful moment at Generali's.";
+    }
 };
