@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase Credentials
-const SUPABASE_URL = 'https://cgqftualdvtmufpeerr.supabase.co';
+const SUPABASE_URL = 'https://cgqftualdvtmufpeerry.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjZ2dmdHVhbGR2dG11ZmVwZWVyciIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzE4ODkyNjAwLCJleHAiOjIwMzQ0Njg2MDB9.iG_p_fNf1N634N-0n70yE9S7A1X0K3W2U9F7G4H5J6K';
 
 /**
