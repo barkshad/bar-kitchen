@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { AppData, GalleryImage, MenuItem, MenuCategory } from '../../types';
 import { fileToBase64, generateCaptionSuggestions, generateSingleCaption } from '../../services';
@@ -66,7 +64,7 @@ export default function AdminPanel({ data, onSave, onClose, isLoggedIn, setIsLog
 const LoginModal = ({ setIsLoggedIn, onClose }: { setIsLoggedIn: React.Dispatch<React.SetStateAction<boolean>>, onClose: () => void }) => {
     const [secretKey, setSecretKey] = useState('');
     const [error, setError] = useState('');
-    const SECRET_KEY = "1234"; // Simple secret key
+    const SECRET_KEY = "12345"; // Simple secret key reset to 12345
 
     const handleLogin = () => {
         if (secretKey === SECRET_KEY) {
@@ -138,7 +136,6 @@ const Dashboard = ({ data, setData }: { data: AppData; setData: React.Dispatch<R
 };
 
 // --- FORM COMPONENTS ---
-// FIX: Update component prop types to use React.FC and an explicit interface to resolve typing issues.
 interface InputProps {
     label: string;
     value: string;
@@ -151,7 +148,6 @@ const Input: React.FC<InputProps> = ({ label, value, onChange }) => (
     </div>
 );
 
-// FIX: Update component prop types to use React.FC and an explicit interface to resolve typing issues.
 interface TextareaProps {
     label: string;
     value: string;
