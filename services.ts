@@ -9,7 +9,7 @@ const SETTINGS_KEY = 'main_config';
 
 /**
  * Fetches all app data from Supabase site_settings table.
- * Falls back to initialData if no data is found.
+ * Falls back to initialData if no data is found or if the table hasn't been created.
  */
 export const loadAppData = async (): Promise<AppData> => {
   try {
@@ -19,14 +19,21 @@ export const loadAppData = async (): Promise<AppData> => {
       .eq('key', SETTINGS_KEY)
       .single();
 
-    if (error || !data) {
-      console.warn("Could not fetch data from Supabase, using initial data:", error?.message);
+    if (error) {
+      // PGRST116 means "no rows found", which is expected on first load
+      if (error.code !== 'PGRST116') {
+        console.error("Supabase error fetching data:", error.message);
+      }
+      return initialData;
+    }
+
+    if (!data || !data.content) {
       return initialData;
     }
 
     return data.content as AppData;
   } catch (error) {
-    console.error("Error loading data from Supabase:", error);
+    console.error("Critical error loading data from Supabase:", error);
     return initialData;
   }
 };
@@ -40,21 +47,24 @@ export const saveAppDataToSupabase = async (data: AppData): Promise<void> => {
     const cleanData = JSON.parse(JSON.stringify(data));
 
     // 2. Perform the upsert
-    // We include the 'key' in the object so Supabase knows which row to update
+    // 'onConflict' ensures that we update the existing 'main_config' row instead of trying to insert a duplicate.
     const { error } = await supabase
       .from('site_settings')
-      .upsert({ 
-        key: SETTINGS_KEY, 
-        content: cleanData,
-        updated_at: new Date().toISOString()
-      });
+      .upsert(
+        { 
+          key: SETTINGS_KEY, 
+          content: cleanData,
+          updated_at: new Date().toISOString()
+        }, 
+        { onConflict: 'key' }
+      );
 
     if (error) {
-      console.error("Supabase API Error:", error.message, error.details, error.hint);
-      throw new Error(`Supabase Error: ${error.message}`);
+      console.error("Supabase Save Error:", error);
+      throw new Error(error.message);
     }
   } catch (error: any) {
-    console.error("Detailed error in saveAppDataToSupabase:", error);
+    console.error("Detailed catch in saveAppDataToSupabase:", error);
     throw error;
   }
 };
@@ -62,12 +72,11 @@ export const saveAppDataToSupabase = async (data: AppData): Promise<void> => {
 // --- AI Service (Gemini API) ---
 const VISION_MODEL = 'gemini-3-flash-preview'; 
 
-// Helper to convert file or data URL to base64
 export const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
-        reader.onload = () => resolve((reader.result as string).split(',')[1]); // Extract base64 part
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
         reader.onerror = error => reject(error);
     });
 };

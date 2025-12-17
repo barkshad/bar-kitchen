@@ -42,10 +42,11 @@ export default function App() {
     try {
       await saveAppDataToSupabase(newData);
       setData(newData);
-      alert('Changes saved successfully!');
+      alert('Changes saved successfully to your database!');
     } catch (err: any) {
-      console.error("Save failed:", err);
-      alert(`Failed to save to Supabase: ${err.message || 'Unknown error'}. Please ensure the database table is set up correctly.`);
+      console.error("Save failed in UI:", err);
+      const errorMsg = err.message || 'Unknown error';
+      alert(`SAVE FAILED: ${errorMsg}\n\nCOMMON FIX: Ensure you have run the SQL script in the Supabase SQL Editor to create the 'site_settings' table.`);
     }
   };
 
